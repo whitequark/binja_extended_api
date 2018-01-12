@@ -17,12 +17,12 @@ if 'linux' in sys.platform:
 
         def lookup(self, name):
             symbols = self._symtab.get_symbol_by_name(name)
-            if symbols == []:
-                return None
-            else:
+            if symbols:
                 return self._offset + symbols[0].entry.st_value
+            else:
+                return None
 
-    _self_dll = ctypes.CDLL(None)
+    _self_dll = ctypes.CDLL("binaryninja", handle=0)
 
     _resolver = _SymbolResolver(open(binaryninja.get_install_directory() + '/binaryninja'))
     _resolver.set_offset('_end', _self_dll.dlsym(0, '_end'))
