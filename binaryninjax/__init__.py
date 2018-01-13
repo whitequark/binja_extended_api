@@ -1,6 +1,5 @@
 from __future__ import print_function
-import sys
-import traceback
+import sys, os, traceback
 from functools import wraps
 import binaryninja as bn
 import sip
@@ -15,6 +14,10 @@ from ._selfsym import resolve_symbol
 
 def on_main_thread(func):
     """Wrap `func` to synchronously execute on the main thread."""
+
+    # or the arguments would get replaced with *args, **kwargs
+    if os.getenv('READTHEDOCS'): return func
+
     @wraps(func)
     def wrapper(*args, **kwargs):
         cell = [None] # no `nonlocal`
