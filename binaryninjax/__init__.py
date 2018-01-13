@@ -7,7 +7,7 @@ from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import Q_ARG, Q_RETURN_ARG
 from ctypes import CDLL, CFUNCTYPE
 from ctypes import byref as c_byref, cast as c_cast, sizeof as c_sizeof
-from ctypes import c_int, c_void_p, c_char_p
+from ctypes import c_int, c_void_p, c_char_p, c_int64
 
 from ._selfsym import resolve_symbol
 
@@ -41,15 +41,26 @@ def on_main_thread(func):
     return wrapper
 
 
-def _q_meta_object_for_name(name):
-    return sip.wrapinstance(resolve_symbol('_ZN{}16staticMetaObjectE'.format(name)),
+def _q_meta_object_for_class(name):
+    return sip.wrapinstance(resolve_symbol('_ZN{}{}16staticMetaObjectE'
+                                           .format(len(name), name)),
                             QtCore.QMetaObject)
 
-def _q_iter_children(q_object):
-    for child in q_object.children():
-        yield child
-        for deep_child in _q_iter_children(child):
-            yield deep_child
+
+class _CStaticMethodProxy(object):
+    def __init__(self, func_name, func_sig):
+        self._func_name = func_name
+        self._func_sig = func_sig
+        self._func = None
+
+    def __call__(self, *args):
+        if self._func is None:
+            func_addr = resolve_symbol(self._func_name)
+            if func_addr is None:
+                raise AttributeError("Symbol {} is not defined".format(func_name))
+            self._func = self._func_sig(func_addr)
+
+        return self._func(*args)
 
 
 class _CMethodProxy(object):
@@ -140,11 +151,20 @@ class _QObjectProxy(_CObjectProxy):
     def _properties(self):
         return self._q_properties[self._q_meta_object]
 
+    def _all_children(self):
+        children = []
+        def find_all(widget):
+            for child in widget.children():
+                children.append(child)
+                find_all(child)
+        find_all(self._q_object)
+        return children
 
-_self_dll = CDLL("binaryninja", handle=0)
 
-_new = CFUNCTYPE(c_void_p, c_int)(('_Znwm', _self_dll))
-_delete = CFUNCTYPE(None, c_void_p)(('_ZdlPv', _self_dll))
+_new          = _CStaticMethodProxy(CFUNCTYPE(c_void_p, c_int),
+                                    '_Znwm')
+_delete       = _CStaticMethodProxy(CFUNCTYPE(None, c_void_p),
+                                    '_ZdlPv')
 
 
 # PyQt5 doesn't provide QString anymore, so we have to bind it ourselves.
@@ -182,9 +202,12 @@ class MainWindow(object):
     :ivar q: underlying Qt widget proxy
     """
 
-    _q_meta_object = _q_meta_object_for_name('10MainWindow')
+    _q_meta_object = _q_meta_object_for_class('MainWindow')
 
-    _c_active_window = None
+    _c_static_api = {
+        'getActiveWindow': _CStaticMethodProxy('_ZN10MainWindow15getActiveWindowEv',
+                                               CFUNCTYPE(c_void_p))
+    }
 
     _c_api = {
         'openFilename':         ('_ZN10MainWindow12openFilenameERK7QString',
@@ -196,13 +219,13 @@ class MainWindow(object):
     }
 
     @classmethod
-    def active(cls):
-        if cls._c_active_window is None:
-            cls._c_active_window = \
-                CFUNCTYPE(c_void_p)(resolve_symbol('_ZN10MainWindow15getActiveWindowEv'))
-        """Return the main window that currently has focus, or None if there isn't any.
-        This includes the case where a dock window or a menu is active."""
-        return cls(sip.wrapinstance(cls._c_active_window(), QtWidgets.QMainWindow))
+    def getActiveWindow(cls):
+        """
+        :return: the active main window
+        :rtype: :class:`MainWindow`
+        """
+        return cls(sip.wrapinstance(cls._c_static_api['getActiveWindow'](),
+                                    QtWidgets.QMainWindow))
 
     def __init__(self, q_main_window):
         self.q = _QObjectProxy(self._q_meta_object, q_main_window, self._c_api)
@@ -296,23 +319,23 @@ class MainWindow(object):
 
 class ViewFrame(object):
     """
-    A view frame, that is, the info panel and the disassembly view bound to a particular
+    A view frame, that is, the info panel and the main view bound to a particular
     binary view.
 
     :ivar q: underlying Qt widget proxy
     """
 
-    _q_meta_object = _q_meta_object_for_name('9ViewFrame')
+    _q_meta_object = _q_meta_object_for_class('ViewFrame')
 
     _c_api = {
         'back':                 ('_ZN9ViewFrame4backEv',
                                  CFUNCTYPE(None, c_void_p)),
         'forward':              ('_ZN9ViewFrame7forwardEv',
                                  CFUNCTYPE(None, c_void_p)),
-        'setInfoType':          ('_ZN9ViewFrame11setInfoTypeERK7QString',
-                                 CFUNCTYPE(c_int, c_void_p, c_void_p)),
         'setViewType':          ('_ZN9ViewFrame11setViewTypeERK7QString',
                                  CFUNCTYPE(c_int, c_void_p, c_void_p)),
+        'getCurrentView':       ('_ZN9ViewFrame14getCurrentViewEv',
+                                 CFUNCTYPE(c_void_p, c_void_p, c_void_p)),
     }
 
     def __init__(self, q):
@@ -346,11 +369,24 @@ class ViewFrame(object):
     def getInfoPanel(self):
         """
         :return: the info panel of this view frame
-        :rtype: :class:`InfoPanel`"""
-        for child in _q_iter_children(self.q):
+        :rtype: :class:`InfoPanel`
+        """
+        for child in self.q._all_children():
             if child.metaObject() == InfoPanel._q_meta_object:
                 return InfoPanel(child)
         return None
+
+    def getView(self):
+        """
+        :return: the main view widget of this view frame
+        :rtype: :class:`HexEditor`, :class:`DisassemblyView`, :class:`StringsView`,
+            :class:`LinearView`, :class:`TypeView`, or an user-defined subclass.
+        """
+        for child in self.q._all_children():
+            if isinstance(child, QtWidgets.QWidget) and child.isVisible():
+                view = View.getViewFromWidget(child)
+                if view is not None:
+                    return view
 
 
 class InfoPanel(object):
@@ -360,7 +396,7 @@ class InfoPanel(object):
     :ivar q: underlying Qt widget proxy
     """
 
-    _q_meta_object = _q_meta_object_for_name('9InfoPanel')
+    _q_meta_object = _q_meta_object_for_class('InfoPanel')
 
     def __init__(self, q):
         self.q = _QObjectProxy(self._q_meta_object, q)
@@ -370,11 +406,80 @@ class InfoPanel(object):
         :return: the tab widget of this info panel
         :rtype: ``QtWidgets.QTabWidget``
         """
-        for child in _q_iter_children(self.q):
+        for child in self.q._all_children():
             if child.metaObject() == QtWidgets.QTabWidget.staticMetaObject:
                 return child
 
 
-def active_window():
-    """Returns the focused main window. See :meth:`MainWindow.active`."""
-    return MainWindow.active()
+class View(object):
+    """
+    The base class of all views.
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = QtWidgets.QWidget.staticMetaObject
+
+    @classmethod
+    def getViewFromWidget(cls, q_widget):
+        for subcls in cls.__subclasses__():
+            if q_widget.metaObject() == subcls._q_meta_object:
+                return subcls(q_widget)
+
+    def __init__(self, q):
+        self.q = _QObjectProxy(self._q_meta_object, q)
+
+
+class HexEditor(View):
+    """
+    A hex editor view.
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = _q_meta_object_for_class('HexEditor')
+
+
+class DisassemblyView(View):
+    """
+    A graph disassembly view.
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = _q_meta_object_for_class('DisassemblyView')
+
+
+class StringsView(View):
+    """
+    A strings view.
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = _q_meta_object_for_class('StringsView')
+
+
+class LinearView(View):
+    """
+    A linear disassembly view.
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = _q_meta_object_for_class('LinearView')
+
+
+class TypeView(View):
+    """
+    A type view.
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = _q_meta_object_for_class('TypeView')
+
+
+def getActiveWindow():
+    """Returns the focused main window. See :meth:`MainWindow.getActiveWindow`."""
+    return MainWindow.getActiveWindow()
