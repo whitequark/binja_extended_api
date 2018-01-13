@@ -305,6 +305,10 @@ class ViewFrame(object):
     _q_meta_object = _q_meta_object_for_name('9ViewFrame')
 
     _c_api = {
+        'back':                 ('_ZN9ViewFrame4backEv',
+                                 CFUNCTYPE(None, c_void_p)),
+        'forward':              ('_ZN9ViewFrame7forwardEv',
+                                 CFUNCTYPE(None, c_void_p)),
         'setInfoType':          ('_ZN9ViewFrame11setInfoTypeERK7QString',
                                  CFUNCTYPE(c_int, c_void_p, c_void_p)),
         'setViewType':          ('_ZN9ViewFrame11setViewTypeERK7QString',
@@ -313,6 +317,16 @@ class ViewFrame(object):
 
     def __init__(self, q):
         self.q = _QObjectProxy(self._q_meta_object, q, self._c_api)
+
+    @on_main_thread
+    def back(self):
+        """Navigates back in history."""
+        self.q.back()
+
+    @on_main_thread
+    def forward(self):
+        """Navigates forward in history."""
+        self.q.forward()
 
     @on_main_thread
     def setViewType(self, binary_view_type, disasm_view_type):
