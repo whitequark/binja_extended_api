@@ -2,10 +2,11 @@ from __future__ import print_function
 import sys, os, traceback
 from functools import wraps
 import binaryninja as bn
+from binaryninja import core as bnc
 import sip
 from PyQt5 import QtCore, QtWidgets
 from PyQt5.QtCore import Q_ARG, Q_RETURN_ARG
-from ctypes import CDLL, CFUNCTYPE
+from ctypes import CDLL, CFUNCTYPE, POINTER as CPOINTER
 from ctypes import byref as c_byref, cast as c_cast, sizeof as c_sizeof
 from ctypes import c_int, c_void_p, c_char_p, c_int64
 
@@ -411,14 +412,22 @@ class InfoPanel(object):
                 return child
 
 
+def _from_bn_smart_ptr(ptr, c_type):
+    # The layout of class CoreRefCountObject is as follows:
+    #   void* vtbl;
+    #   int   m_refs;
+    #   T*    m_object;
+    # We need m_object.
+    c_object = c_cast(ptr + c_sizeof(c_void_p) * 2, CPOINTER(c_void_p)).contents
+    return bnc.handle_of_type(c_object, c_type)
+
+
 class View(object):
     """
     The base class of all views.
 
     :ivar q: underlying Qt widget proxy
     """
-
-    _q_meta_object = QtWidgets.QWidget.staticMetaObject
 
     @classmethod
     def getViewFromWidget(cls, q_widget):
@@ -427,7 +436,7 @@ class View(object):
                 return subcls(q_widget)
 
     def __init__(self, q):
-        self.q = _QObjectProxy(self._q_meta_object, q)
+        self.q = _QObjectProxy(self._q_meta_object, q, self._c_api)
 
 
 class HexEditor(View):
@@ -439,6 +448,17 @@ class HexEditor(View):
 
     _q_meta_object = _q_meta_object_for_class('HexEditor')
 
+    _c_api = {
+        'getData':          ('_ZN9HexEditor7getDataEv',
+                             CFUNCTYPE(c_void_p, c_void_p)),
+    }
+
+    def getBinaryView(self):
+        """
+        :return: the binary view of this view
+        """
+        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+
 
 class DisassemblyView(View):
     """
@@ -448,6 +468,17 @@ class DisassemblyView(View):
     """
 
     _q_meta_object = _q_meta_object_for_class('DisassemblyView')
+
+    _c_api = {
+        'getData':          ('_ZN15DisassemblyView7getDataEv',
+                             CFUNCTYPE(c_void_p, c_void_p)),
+    }
+
+    def getBinaryView(self):
+        """
+        :return: the binary view of this view
+        """
+        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
 
 
 class StringsView(View):
@@ -459,6 +490,27 @@ class StringsView(View):
 
     _q_meta_object = _q_meta_object_for_class('StringsView')
 
+    _c_api = {
+        'getData':          ('_ZN11StringsView7getDataEv',
+                             CFUNCTYPE(c_void_p, c_void_p)),
+        'navigate':         ('_ZN11StringsView8navigateEm',
+                             CFUNCTYPE(c_int, c_void_p, c_int64))
+    }
+
+    def getBinaryView(self):
+        """
+        :return: the binary view of this view
+        """
+        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+
+    def navigate(self, addr):
+        """
+        :param addr: address of the string to highlight
+        :type addr: int
+        :return: ``True`` if successful, ``False`` otherwise
+        """
+        return self.q.navigate(addr) != 0
+
 
 class LinearView(View):
     """
@@ -469,6 +521,17 @@ class LinearView(View):
 
     _q_meta_object = _q_meta_object_for_class('LinearView')
 
+    _c_api = {
+        'getData':          ('_ZN10LinearView7getDataEv',
+                             CFUNCTYPE(c_void_p, c_void_p)),
+    }
+
+    def getBinaryView(self):
+        """
+        :return: the binary view of this view
+        """
+        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+
 
 class TypeView(View):
     """
@@ -478,6 +541,17 @@ class TypeView(View):
     """
 
     _q_meta_object = _q_meta_object_for_class('TypeView')
+
+    _c_api = {
+        'getData':          ('_ZN10TypeView7getDataEv',
+                             CFUNCTYPE(c_void_p, c_void_p)),
+    }
+
+    def getBinaryView(self):
+        """
+        :return: the binary view of this view
+        """
+        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
 
 
 def getActiveWindow():
