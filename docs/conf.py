@@ -21,6 +21,7 @@ sys.modules.update((mod_name, Mock()) for mod_name in MOCK_MODULES)
 extensions = ['sphinx.ext.autosummary', 'sphinx.ext.autodoc', 'sphinx.ext.viewcode']
 templates_path = ['_templates']
 autosummary_generate = True
+autodoc_member_order = 'bysource'
 source_suffix = '.rst'
 master_doc = 'index'
 project = 'Binary Ninja Extended API'

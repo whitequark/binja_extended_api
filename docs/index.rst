@@ -14,7 +14,7 @@ Binary Ninja Extended API Documentation
    MainWindow
    ViewFrame
    InfoPanel
-   HexView
+   HexEditor
    DisassemblyView
    StringsView
    LinearView

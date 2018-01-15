@@ -13,6 +13,14 @@ from ctypes import c_int, c_void_p, c_char_p, c_int64
 from ._selfsym import resolve_symbol
 
 
+try:
+    for _on_reload_fn in _on_reload:
+        _on_reload_fn()
+except NameError:
+    pass
+_on_reload = []
+
+
 def on_main_thread(func):
     """Wrap `func` to synchronously execute on the main thread."""
 
@@ -219,6 +227,13 @@ class MainWindow(object):
                                  CFUNCTYPE(c_void_p, c_void_p))
     }
 
+    try:
+        _init_callbacks = MainWindow._init_callbacks
+        _init_set = ViewFrame._init_set
+    except NameError:
+        _init_callbacks = []
+        _init_set = set()
+
     @classmethod
     def getActiveWindow(cls):
         """
@@ -227,6 +242,21 @@ class MainWindow(object):
         """
         return cls(sip.wrapinstance(cls._c_static_api['getActiveWindow'](),
                                     QtWidgets.QMainWindow))
+
+    @classmethod
+    def addInitCallback(cls, fn):
+        """
+        Registers ``fn`` to be called each time a new main window is opened.
+
+        :param fn: callback function
+        :type fn: function(:class:`MainWindow`)
+        """
+        cls._init_callbacks.append(fn)
+
+    @classmethod
+    def removeInitCallback(cls, fn):
+        """Unregisters ``fn``."""
+        cls._init_callbacks.remove(fn)
 
     def __init__(self, q_main_window):
         self.q = _QObjectProxy(self._q_meta_object, q_main_window, self._c_api)
@@ -338,6 +368,28 @@ class ViewFrame(object):
         'getCurrentView':       ('_ZN9ViewFrame14getCurrentViewEv',
                                  CFUNCTYPE(c_void_p, c_void_p, c_void_p)),
     }
+
+    try:
+        _init_callbacks = ViewFrame._init_callbacks
+        _init_set = ViewFrame._init_set
+    except NameError:
+        _init_callbacks = []
+        _init_set = set()
+
+    @classmethod
+    def addInitCallback(cls, fn):
+        """
+        Registers ``fn`` to be called each time a new view frame (i.e. a tab) is opened.
+
+        :param fn: callback function
+        :type fn: function(:class:`ViewFrame`)
+        """
+        cls._init_callbacks.append(fn)
+
+    @classmethod
+    def removeInitCallback(cls, fn):
+        """Unregisters ``fn``."""
+        cls._init_callbacks.remove(fn)
 
     def __init__(self, q):
         self.q = _QObjectProxy(self._q_meta_object, q, self._c_api)
@@ -557,3 +609,25 @@ class TypeView(View):
 def getActiveWindow():
     """Returns the focused main window. See :meth:`MainWindow.getActiveWindow`."""
     return MainWindow.getActiveWindow()
+
+
+class _ApplicationEventFilter(QtCore.QObject):
+    def __init__(self):
+        QtCore.QObject.__init__(self)
+        q_app = QtWidgets.QApplication.instance()
+        q_app.installEventFilter(self)
+        _on_reload.append(lambda: q_app.removeEventFilter(self))
+
+    def eventFilter(self, watched, event):
+        if event.type() == QtCore.QEvent.Show:
+            for cls in [MainWindow, ViewFrame]:
+                if watched.metaObject() == cls._q_meta_object and watched not in cls._init_set:
+                    cls._init_set.add(watched)
+                    watched.destroyed.connect(lambda: cls._init_set.remove(watched))
+
+                    obj = cls(watched)
+                    for callback in cls._init_callbacks:
+                        callback(obj)
+        return False
+
+bn.mainthread.execute_on_main_thread_and_wait(lambda: _ApplicationEventFilter())
