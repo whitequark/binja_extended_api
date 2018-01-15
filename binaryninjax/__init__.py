@@ -477,11 +477,11 @@ def _from_bn_smart_ptr(ptr, c_type, new_ref):
     #   T*    m_object;
     # We need m_object.
     c_object = c_cast(ptr + c_sizeof(c_void_p) * 2, CPOINTER(c_void_p)).contents
-    return bnc.handle_of_type(new_ref_fn(c_object), c_type)
+    return bnc.handle_of_type(c_cast(new_ref_fn(c_object), c_void_p), c_type)
 
 def _binary_view_from_cxx_ref(ptr):
     return bn.BinaryView(handle=_from_bn_smart_ptr(ptr,
-                bnc.BNBinaryView, 'BNNewBinaryViewReference'))
+                bnc.BNBinaryView, 'BNNewViewReference'))
 
 
 class View(object):
