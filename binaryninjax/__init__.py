@@ -633,7 +633,10 @@ class _ApplicationEventFilter(QtCore.QObject):
             for cls in [MainWindow, ViewFrame]:
                 if watched.metaObject() == cls._q_meta_object and watched not in cls._init_set:
                     cls._init_set.add(watched)
-                    watched.destroyed.connect(lambda: cls._init_set.remove(watched))
+                    def cleanup():
+                        if watched in cls._init_set:
+                            cls._init_set.remove(watched)
+                    watched.destroyed.connect(cleanup)
 
                     obj = cls(watched)
                     for callback in cls._init_callbacks:
