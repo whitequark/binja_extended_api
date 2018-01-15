@@ -170,10 +170,10 @@ class _QObjectProxy(_CObjectProxy):
         return children
 
 
-_new          = _CStaticMethodProxy(CFUNCTYPE(c_void_p, c_int),
-                                    '_Znwm')
-_delete       = _CStaticMethodProxy(CFUNCTYPE(None, c_void_p),
-                                    '_ZdlPv')
+_new          = _CStaticMethodProxy('_Znwm',
+                                    CFUNCTYPE(c_void_p, c_int))
+_delete       = _CStaticMethodProxy('_ZdlPv',
+                                    CFUNCTYPE(None, c_void_p))
 
 
 # PyQt5 doesn't provide QString anymore, so we have to bind it ourselves.
