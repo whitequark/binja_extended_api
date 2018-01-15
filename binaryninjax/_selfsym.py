@@ -23,6 +23,7 @@ if 'linux' in sys.platform:
                 return None
 
     _self_dll = ctypes.CDLL("binaryninja", handle=0)
+    _self_dll.dlsym.restype = ctypes.c_void_p
 
     _resolver = _SymbolResolver(open(binaryninja.get_install_directory() + '/binaryninja'))
     _resolver.set_offset('_end', _self_dll.dlsym(0, '_end'))

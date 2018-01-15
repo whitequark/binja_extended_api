@@ -66,7 +66,7 @@ class _CStaticMethodProxy(object):
         if self._func is None:
             func_addr = resolve_symbol(self._func_name)
             if func_addr is None:
-                raise AttributeError("Symbol {} is not defined".format(func_name))
+                raise AttributeError("Symbol {} is not defined".format(self._func_name))
             self._func = self._func_sig(func_addr)
 
         return self._func(*args)
