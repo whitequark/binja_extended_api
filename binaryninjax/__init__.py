@@ -464,14 +464,24 @@ class InfoPanel(object):
                 return child
 
 
-def _from_bn_smart_ptr(ptr, c_type):
+_bn_new_ref_fns = {}
+
+def _from_bn_smart_ptr(ptr, c_type, new_ref):
+    if new_ref not in _bn_new_ref_fns:
+        _bn_new_ref_fns[new_ref] = _CStaticMethodProxy(new_ref, CFUNCTYPE(c_void_p, c_void_p))
+    new_ref_fn = _bn_new_ref_fns[new_ref]
+
     # The layout of class CoreRefCountObject is as follows:
     #   void* vtbl;
     #   int   m_refs;
     #   T*    m_object;
     # We need m_object.
     c_object = c_cast(ptr + c_sizeof(c_void_p) * 2, CPOINTER(c_void_p)).contents
-    return bnc.handle_of_type(c_object, c_type)
+    return bnc.handle_of_type(new_ref_fn(c_object), c_type)
+
+def _binary_view_from_cxx_ref(ptr):
+    return bn.BinaryView(handle=_from_bn_smart_ptr(ptr,
+                bnc.BNBinaryView, 'BNNewBinaryViewReference'))
 
 
 class View(object):
@@ -509,7 +519,7 @@ class HexEditor(View):
         """
         :return: the binary view of this view
         """
-        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+        return _binary_view_from_cxx_ref(self.q.getData())
 
 
 class DisassemblyView(View):
@@ -530,7 +540,7 @@ class DisassemblyView(View):
         """
         :return: the binary view of this view
         """
-        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+        return _binary_view_from_cxx_ref(self.q.getData())
 
 
 class StringsView(View):
@@ -553,7 +563,7 @@ class StringsView(View):
         """
         :return: the binary view of this view
         """
-        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+        return _binary_view_from_cxx_ref(self.q.getData())
 
     def navigate(self, addr):
         """
@@ -582,7 +592,7 @@ class LinearView(View):
         """
         :return: the binary view of this view
         """
-        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+        return _binary_view_from_cxx_ref(self.q.getData())
 
 
 class TypeView(View):
@@ -603,7 +613,7 @@ class TypeView(View):
         """
         :return: the binary view of this view
         """
-        return bn.BinaryView(handle=_from_bn_smart_ptr(self.q.getData(), bnc.BNBinaryView))
+        return _binary_view_from_cxx_ref(self.q.getData())
 
 
 def getActiveWindow():
