@@ -637,7 +637,10 @@ class _ApplicationEventFilter(QtCore.QObject):
 
                     obj = cls(watched)
                     for callback in cls._init_callbacks:
-                        callback(obj)
+                        try:
+                            callback(obj)
+                        except:
+                            bn.log.log_error(traceback.format_exc())
         return False
 
 bn.mainthread.execute_on_main_thread_and_wait(lambda: _ApplicationEventFilter())
