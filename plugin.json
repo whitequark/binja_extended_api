@@ -1,0 +1,13 @@
+{
+  "plugin": {
+    "name": "Extended API",
+    "version": "0.1",
+    "author": "whitequark",
+    "type": ["ui"],
+    "api": "python2",
+    "description": "A plugin providing an API for the Binary Ninja GUI.",
+    "license": {
+      "name": "BSD-0-clause"
+    }
+  }
+}
