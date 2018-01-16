@@ -4,7 +4,7 @@ from functools import wraps
 import binaryninja as bn
 from binaryninja import core as bnc
 import sip
-from PyQt5 import QtCore, QtWidgets
+from PyQt5 import QtCore, QtGui, QtWidgets
 from PyQt5.QtCore import Q_ARG, Q_RETURN_ARG
 from ctypes import CDLL, CFUNCTYPE, POINTER as CPOINTER
 from ctypes import byref as c_byref, cast as c_cast, sizeof as c_sizeof
@@ -659,6 +659,24 @@ class CrossReferenceItemDelegate(object):
 def getActiveWindow():
     """Returns the focused main window. See :meth:`MainWindow.getActiveWindow`."""
     return MainWindow.getActiveWindow()
+
+
+_getThemeColor = _CStaticMethodProxy('_Z13getThemeColor10ThemeColor',
+                                     CFUNCTYPE(c_int, c_void_p, c_int))
+
+def getThemeColor(name):
+    """
+    Returns the ``QColor`` corresponding to the symbolic theme color.
+    :param name: one of ``address``, ``symbol``, or an integer
+    """
+    if name == 'address':
+        name = 0
+    if name == 'symbol':
+        name = 0x19
+
+    q_color = QtGui.QColor()
+    _getThemeColor(sip.unwrapinstance(q_color), name)
+    return q_color
 
 
 class _ApplicationEventFilter(QtCore.QObject):

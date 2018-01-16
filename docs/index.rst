@@ -21,6 +21,9 @@ Binary Ninja Extended API Documentation
    TypeView
    CrossReferenceItemDelegate
 
+.. autofunction:: getActiveWindow
+.. autofunction:: getThemeColor
+
 The :mod:`binaryninjax` module provides additional bindings to the C++ API not normally exposed by Binary Ninja. These bindings provide a more extensive programmatic access to its GUI.
 
 .. attention::
