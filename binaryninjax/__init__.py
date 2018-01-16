@@ -616,6 +616,46 @@ class TypeView(View):
         return _binary_view_from_cxx_ref(self.q.getData())
 
 
+class CrossReferenceItemDelegate(object):
+    """
+    An item delegate used to paint the cross references window.
+
+    This delegate expects the display role of the cell to contain data in
+    a simple hierarchical format:
+
+    ::
+        color = 0xffffff
+        text  = "some text"
+        word  = [color, text]
+        line  = [word, word, ...]
+        lines = [line, line, ...]
+
+    :ivar q: underlying Qt widget proxy
+    """
+
+    _q_meta_object = _q_meta_object_for_class('CrossReferenceItemDelegate')
+
+    _c_api = {
+        '_constructor':     ('_ZN26CrossReferenceItemDelegateC1EP7QWidget',
+                             CFUNCTYPE(c_void_p, c_void_p)),
+        '_destructor':      ('_ZN26CrossReferenceItemDelegateD1Ev',
+                             CFUNCTYPE(c_void_p)),
+        'updateFonts':      ('_ZN26CrossReferenceItemDelegate11updateFontsEv',
+                             CFUNCTYPE(None, c_void_p)),
+    }
+
+    def __init__(self, parent=None):
+        c_ptr = _new(0x30)
+        if parent:
+            if not isinstance(parent.q._q_object, QtCore.QObject):
+                raise TypeError("parent must be None or an object")
+            _CObjectProxy(c_ptr, self._c_api)._constructor(parent.q._c_ptr)
+        else:
+            _CObjectProxy(c_ptr, self._c_api)._constructor(None)
+        q_object = sip.wrapinstance(c_ptr, QtCore.QObject)
+        self.q = _QObjectProxy(self._q_meta_object, q_object, self._c_api)
+
+
 def getActiveWindow():
     """Returns the focused main window. See :meth:`MainWindow.getActiveWindow`."""
     return MainWindow.getActiveWindow()

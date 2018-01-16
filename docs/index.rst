@@ -19,6 +19,7 @@ Binary Ninja Extended API Documentation
    StringsView
    LinearView
    TypeView
+   CrossReferenceItemDelegate
 
 The :mod:`binaryninjax` module provides additional bindings to the C++ API not normally exposed by Binary Ninja. These bindings provide a more extensive programmatic access to its GUI.
 
